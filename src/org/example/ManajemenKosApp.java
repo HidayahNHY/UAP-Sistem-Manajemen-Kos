@@ -178,34 +178,56 @@ public class ManajemenKosApp extends JFrame {
 
     // Menangani penambahan data dengan API LocalDate
     private void addOccupantData() {
-        if (nameField.getText().trim().isEmpty() || roomField.getText().trim().isEmpty()) {
-            JOptionPane.showMessageDialog(this, "Data tidak lengkap!");
+        String nama = nameField.getText().trim();
+        String kamar = roomField.getText().trim();
+        String telepon = phoneField.getText().trim();
+
+        // 1. Validasi Input Kosong
+        if (nama.isEmpty() || kamar.isEmpty() || telepon.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "Semua data harus diisi!", "Peringatan", JOptionPane.WARNING_MESSAGE);
             return;
         }
 
-        // Penggunaan Java API LocalDate untuk tanggal otomatis
-        String currentTgl = LocalDate.now().format(DateTimeFormatter.ofPattern("dd-MM-yyyy"));
+        // 2. Validasi Nama: Tidak boleh mengandung angka
+        // Menggunakan regex: jika mengandung digit (\\d), maka error
+        if (nama.matches(".*\\d.*")) {
+            JOptionPane.showMessageDialog(this, "Nama Penghuni tidak boleh mengandung ANGKA!", "Format Salah", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+
+        // 3. Validasi Angka menggunakan Exception Handling (try-catch)
+        try {
+            Integer.parseInt(kamar); // Validasi nomor kamar
+            Long.parseLong(telepon);  // Validasi nomor telepon
+        } catch (NumberFormatException e) {
+            JOptionPane.showMessageDialog(this, "Nomor Kamar dan No. Telepon harus berupa ANGKA!", "Format Salah", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+
+        // 4. Jika semua validasi lolos, simpan data
+        String currentTgl = LocalDate.now().format(DateTimeFormatter.ofPattern("dd-MM-yyyy")); //
 
         Object[] row = {
                 occupantTable.getModel().getRowCount() + 1,
-                nameField.getText(),
-                roomField.getText(),
+                nama,
+                kamar,
                 typeCombo.getSelectedItem(),
-                phoneField.getText(),
+                telepon,
                 currentTgl
         };
 
-        try { // Exception Handling untuk proses penyimpanan
+        try {
             occupantTable.getModel().addRow(row);
-            occupantTable.saveToFile(); // Persistensi File Handling
+            occupantTable.saveToFile(); // Persistensi ke file .txt
 
+            // Reset fields
             nameField.setText("");
             roomField.setText("");
             phoneField.setText("");
 
             switchPage("DashboardPage");
         } catch (Exception ex) {
-            JOptionPane.showMessageDialog(this, "Gagal memproses data: " + ex.getMessage());
+            JOptionPane.showMessageDialog(this, "Error: " + ex.getMessage());
         }
     }
 
