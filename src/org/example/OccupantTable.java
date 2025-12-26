@@ -12,7 +12,6 @@ public class OccupantTable {
     private final String FILENAME = "data_penghuni.txt";
 
     public OccupantTable() {
-        // Tambahkan kolom 'Tanggal Masuk' sesuai kriteria b
         String[] columns = {"ID", "Nama Penghuni", "No. Kamar", "Tipe Kamar", "No. Telepon", "Tanggal Masuk"};
         tableModel = new DefaultTableModel(columns, 0);
         table = new JTable(tableModel);
@@ -25,17 +24,23 @@ public class OccupantTable {
         header.setForeground(Color.WHITE);
         header.setPreferredSize(new Dimension(0, 40));
 
-        loadFromFile(); // Memuat data saat objek dibuat
+        loadFromFile();
+    }
+
+    // Metode baru untuk menambah data menggunakan Object Oriented (Inheritance) [cite: 205]
+    public void addOccupantToTable(Occupant occ) {
+        int id = tableModel.getRowCount() + 1;
+        tableModel.addRow(occ.toRow(id));
+        saveToFile();
     }
 
     public void saveToFile() {
-        // Exception Handling menggunakan try-with-resources
         try (BufferedWriter writer = new BufferedWriter(new FileWriter(FILENAME))) {
             for (int i = 0; i < tableModel.getRowCount(); i++) {
                 StringBuilder row = new StringBuilder();
                 for (int j = 0; j < tableModel.getColumnCount(); j++) {
                     Object val = tableModel.getValueAt(i, j);
-                    row.append(val != null ? val.toString() : ""); // Cegah null
+                    row.append(val != null ? val.toString() : "");
                     if (j < tableModel.getColumnCount() - 1) row.append(",");
                 }
                 writer.write(row.toString());
@@ -54,7 +59,6 @@ public class OccupantTable {
             String line;
             while ((line = reader.readLine()) != null) {
                 String[] data = line.split(",");
-                // Validasi jumlah kolom sebelum menambah row
                 if (data.length == tableModel.getColumnCount()) {
                     tableModel.addRow(data);
                 }

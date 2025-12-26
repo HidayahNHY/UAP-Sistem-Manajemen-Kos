@@ -5,7 +5,7 @@ import javax.swing.border.EmptyBorder;
 import java.awt.*;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
-import java.time.LocalDate; //
+import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 
 public class ManajemenKosApp extends JFrame {
@@ -20,15 +20,15 @@ public class ManajemenKosApp extends JFrame {
     public ManajemenKosApp() {
         setTitle("Sistem Manajemen Kos Lowokwaru");
         setSize(1000, 700);
-        // Penting: Menggunakan DO_NOTHING_ON_CLOSE agar data sempat tersimpan sebelum exit
+        // Penting: Menggunakan DO_NOTHING_ON_CLOSE agar WindowListener bisa bekerja [cite: 11]
         setDefaultCloseOperation(DO_NOTHING_ON_CLOSE);
         setLocationRelativeTo(null);
 
-        // Listener untuk menyimpan data ke file .txt secara otomatis saat aplikasi ditutup
+        // Fitur Persistensi: Save data otomatis saat aplikasi ditutup (X) [cite: 135, 136]
         addWindowListener(new WindowAdapter() {
             @Override
             public void windowClosing(WindowEvent e) {
-                occupantTable.saveToFile(); // Memastikan persistensi data permanen
+                occupantTable.saveToFile();
                 System.exit(0);
             }
         });
@@ -44,7 +44,7 @@ public class ManajemenKosApp extends JFrame {
 
     public void switchPage(String pageName) {
         cardLayout.show(mainPanel, pageName);
-        updateCounter(); // Menghilangkan error 'Cannot resolve method'
+        updateCounter();
     }
 
     private JPanel createLoginPage() {
@@ -72,6 +72,7 @@ public class ManajemenKosApp extends JFrame {
 
         JButton btnLogin = ButtonFactory.createStyledButton("LOGIN SEKARANG", new Color(46, 204, 113));
         btnLogin.addActionListener(e -> {
+            // Validasi Login Sederhana [cite: 12, 13]
             if (userField.getText().equals("admin") && new String(passField.getPassword()).equals("123")) {
                 switchPage("DashboardPage");
             } else {
@@ -93,7 +94,7 @@ public class ManajemenKosApp extends JFrame {
 
         nameField = new JTextField(20);
         roomField = new JTextField(20);
-        typeCombo = new JComboBox<>(new String[]{"Reguler", "VIP", "Suite"});
+        typeCombo = new JComboBox<>(new String[]{"Reguler", "VIP"});
         phoneField = new JTextField(20);
 
         gbc.gridx = 0; gbc.gridy = 0; gbc.gridwidth = 2;
@@ -112,7 +113,7 @@ public class ManajemenKosApp extends JFrame {
         gbc.gridx = 1; page.add(phoneField, gbc);
 
         JButton btnAdd = ButtonFactory.createStyledButton("SIMPAN DATA", new Color(39, 174, 96));
-        btnAdd.addActionListener(e -> addOccupantData()); // Menghilangkan error 'Cannot resolve method'
+        btnAdd.addActionListener(e -> addOccupantData());
 
         gbc.gridx = 0; gbc.gridy = 5; gbc.gridwidth = 2;
         page.add(btnAdd, gbc);
@@ -176,85 +177,81 @@ public class ManajemenKosApp extends JFrame {
         return page;
     }
 
-    // Menangani penambahan data dengan API LocalDate
+    // --- LOGIKA UTAMA (CRUD & VALIDASI) ---
+
     private void addOccupantData() {
         String nama = nameField.getText().trim();
         String kamar = roomField.getText().trim();
         String telepon = phoneField.getText().trim();
+        String tipe = (String) typeCombo.getSelectedItem();
 
-        // 1. Validasi Input Kosong
+        // 1. Validasi Input Kosong [cite: 28, 29]
         if (nama.isEmpty() || kamar.isEmpty() || telepon.isEmpty()) {
-            JOptionPane.showMessageDialog(this, "Semua data harus diisi!", "Peringatan", JOptionPane.WARNING_MESSAGE);
+            JOptionPane.showMessageDialog(this, "Harap lengkapi semua data!", "Peringatan", JOptionPane.WARNING_MESSAGE);
             return;
         }
 
-        // 2. Validasi Nama: Tidak boleh mengandung angka
-        // Menggunakan regex: jika mengandung digit (\\d), maka error
+        // 2. Validasi Nama (Regex) - Mencegah Angka
         if (nama.matches(".*\\d.*")) {
-            JOptionPane.showMessageDialog(this, "Nama Penghuni tidak boleh mengandung ANGKA!", "Format Salah", JOptionPane.ERROR_MESSAGE);
+            JOptionPane.showMessageDialog(this, "Nama tidak boleh mengandung angka!", "Format Salah", JOptionPane.ERROR_MESSAGE);
             return;
         }
 
-        // 3. Validasi Angka menggunakan Exception Handling (try-catch)
+        // 3. Exception Handling: Validasi Angka [cite: 173, 174]
         try {
-            Integer.parseInt(kamar); // Validasi nomor kamar
-            Long.parseLong(telepon);  // Validasi nomor telepon
+            Integer.parseInt(kamar);
+            Long.parseLong(telepon);
         } catch (NumberFormatException e) {
-            JOptionPane.showMessageDialog(this, "Nomor Kamar dan No. Telepon harus berupa ANGKA!", "Format Salah", JOptionPane.ERROR_MESSAGE);
+            JOptionPane.showMessageDialog(this, "Nomor Kamar dan Telepon harus berupa ANGKA!", "Format Salah", JOptionPane.ERROR_MESSAGE);
             return;
         }
 
-        // 4. Jika semua validasi lolos, simpan data
-        String currentTgl = LocalDate.now().format(DateTimeFormatter.ofPattern("dd-MM-yyyy")); //
+        // 4. Penggunaan Java API LocalDate untuk Tanggal Otomatis
+        String currentTgl = LocalDate.now().format(DateTimeFormatter.ofPattern("dd-MM-yyyy"));
 
-        Object[] row = {
-                occupantTable.getModel().getRowCount() + 1,
-                nama,
-                kamar,
-                typeCombo.getSelectedItem(),
-                telepon,
-                currentTgl
-        };
-
-        try {
-            occupantTable.getModel().addRow(row);
-            occupantTable.saveToFile(); // Persistensi ke file .txt
-
-            // Reset fields
-            nameField.setText("");
-            roomField.setText("");
-            phoneField.setText("");
-
-            switchPage("DashboardPage");
-        } catch (Exception ex) {
-            JOptionPane.showMessageDialog(this, "Error: " + ex.getMessage());
+        // 5. Penerapan Inheritance (Pewarisan) [cite: 175, 206]
+        Occupant penghuniBaru;
+        if (tipe.equals("VIP")) {
+            penghuniBaru = new VIPOccupant(nama, kamar, telepon, currentTgl);
+        } else {
+            penghuniBaru = new RegulerOccupant(nama, kamar, telepon, currentTgl);
         }
+
+        // Simpan ke tabel dan file [cite: 38, 39]
+        occupantTable.addOccupantToTable(penghuniBaru);
+
+        // Reset Fields
+        nameField.setText("");
+        roomField.setText("");
+        phoneField.setText("");
+
+        switchPage("DashboardPage");
     }
 
     private void updateProcess() {
         int row = occupantTable.getTable().getSelectedRow();
         if (row != -1) {
-            String name = JOptionPane.showInputDialog(this, "Masukkan Nama Baru:");
+            String name = JOptionPane.showInputDialog(this, "Masukkan Nama Baru:"); // [cite: 77, 78]
             if (name != null && !name.trim().isEmpty()) {
                 occupantTable.getModel().setValueAt(name, row, 1);
-                occupantTable.saveToFile(); //
+                occupantTable.saveToFile();
             }
         } else {
-            JOptionPane.showMessageDialog(this, "Pilih baris di Dashboard terlebih dahulu!");
+            JOptionPane.showMessageDialog(this, "Pilih baris di tabel terlebih dahulu!");
         }
     }
 
     private void deleteProcess() {
         int row = occupantTable.getTable().getSelectedRow();
         if (row != -1) {
-            int confirm = JOptionPane.showConfirmDialog(this, "Hapus data ini?");
+            int confirm = JOptionPane.showConfirmDialog(this, "Hapus data ini?", "Konfirmasi", JOptionPane.YES_NO_OPTION); // [cite: 101]
             if (confirm == JOptionPane.YES_OPTION) {
                 occupantTable.getModel().removeRow(row);
-                occupantTable.saveToFile(); //
+                occupantTable.saveToFile(); // [cite: 102]
                 updateCounter();
             }
         } else {
-            JOptionPane.showMessageDialog(this, "Pilih baris di Dashboard terlebih dahulu!");
+            JOptionPane.showMessageDialog(this, "Pilih baris di tabel terlebih dahulu!");
         }
     }
 
