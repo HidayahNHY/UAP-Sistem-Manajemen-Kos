@@ -3,23 +3,36 @@ package org.example;
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import java.awt.*;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
+import java.time.LocalDate; //
+import java.time.format.DateTimeFormatter;
 
 public class ManajemenKosApp extends JFrame {
-    private CardLayout cardLayout = new CardLayout();
-    private JPanel mainPanel = new JPanel(cardLayout);
-    private OccupantTable occupantTable = new OccupantTable();
+    private final CardLayout cardLayout = new CardLayout();
+    private final JPanel mainPanel = new JPanel(cardLayout);
+    private final OccupantTable occupantTable = new OccupantTable();
 
-    // Form Fields
+    private JLabel lblTotal;
     private JTextField nameField, roomField, phoneField;
     private JComboBox<String> typeCombo;
 
     public ManajemenKosApp() {
-        setTitle("Sistem Manajemen Kos Modern v1.0");
+        setTitle("Sistem Manajemen Kos Lowokwaru");
         setSize(1000, 700);
-        setDefaultCloseOperation(EXIT_ON_CLOSE);
+        // Penting: Menggunakan DO_NOTHING_ON_CLOSE agar data sempat tersimpan sebelum exit
+        setDefaultCloseOperation(DO_NOTHING_ON_CLOSE);
         setLocationRelativeTo(null);
 
-        // Tambah Halaman
+        // Listener untuk menyimpan data ke file .txt secara otomatis saat aplikasi ditutup
+        addWindowListener(new WindowAdapter() {
+            @Override
+            public void windowClosing(WindowEvent e) {
+                occupantTable.saveToFile(); // Memastikan persistensi data permanen
+                System.exit(0);
+            }
+        });
+
         mainPanel.add(createLoginPage(), "LoginPage");
         mainPanel.add(createInputPage(), "InputPage");
         mainPanel.add(createDashboardPage(), "DashboardPage");
@@ -29,7 +42,11 @@ public class ManajemenKosApp extends JFrame {
         cardLayout.show(mainPanel, "LoginPage");
     }
 
-    // --- LOGIK NAVIGASI ---
+    public void switchPage(String pageName) {
+        cardLayout.show(mainPanel, pageName);
+        updateCounter(); // Menghilangkan error 'Cannot resolve method'
+    }
+
     private JPanel createLoginPage() {
         JPanel page = new JPanel(new GridBagLayout());
         page.setBackground(new Color(52, 73, 94));
@@ -56,11 +73,12 @@ public class ManajemenKosApp extends JFrame {
         JButton btnLogin = ButtonFactory.createStyledButton("LOGIN SEKARANG", new Color(46, 204, 113));
         btnLogin.addActionListener(e -> {
             if (userField.getText().equals("admin") && new String(passField.getPassword()).equals("123")) {
-                cardLayout.show(mainPanel, "DashboardPage");
+                switchPage("DashboardPage");
             } else {
                 JOptionPane.showMessageDialog(this, "Akses Ditolak!", "Error", JOptionPane.ERROR_MESSAGE);
             }
         });
+
         gbc.gridx = 0; gbc.gridy = 3; gbc.gridwidth = 2;
         page.add(btnLogin, gbc);
         return page;
@@ -94,32 +112,45 @@ public class ManajemenKosApp extends JFrame {
         gbc.gridx = 1; page.add(phoneField, gbc);
 
         JButton btnAdd = ButtonFactory.createStyledButton("SIMPAN DATA", new Color(39, 174, 96));
-        btnAdd.addActionListener(e -> addOccupantData());
+        btnAdd.addActionListener(e -> addOccupantData()); // Menghilangkan error 'Cannot resolve method'
+
         gbc.gridx = 0; gbc.gridy = 5; gbc.gridwidth = 2;
         page.add(btnAdd, gbc);
 
         JButton btnBack = ButtonFactory.createStyledButton("KEMBALI", Color.GRAY);
-        btnBack.addActionListener(e -> cardLayout.show(mainPanel, "DashboardPage"));
+        btnBack.addActionListener(e -> switchPage("DashboardPage"));
         gbc.gridy = 6;
         page.add(btnBack, gbc);
+
         return page;
     }
 
     private JPanel createDashboardPage() {
         JPanel page = new JPanel(new BorderLayout());
         page.setBorder(new EmptyBorder(25, 25, 25, 25));
+
+        JPanel headerPanel = new JPanel(new BorderLayout());
+        headerPanel.setOpaque(false);
+        headerPanel.setBorder(new EmptyBorder(0, 0, 15, 0));
+
         JLabel title = new JLabel("Daftar Penghuni Kos Aktif");
         title.setFont(new Font("Segoe UI", Font.BOLD, 22));
-        page.add(title, BorderLayout.NORTH);
 
+        lblTotal = new JLabel("Total Penghuni: 0");
+        lblTotal.setFont(new Font("Segoe UI", Font.ITALIC, 16));
+
+        headerPanel.add(title, BorderLayout.WEST);
+        headerPanel.add(lblTotal, BorderLayout.EAST);
+
+        page.add(headerPanel, BorderLayout.NORTH);
         page.add(new JScrollPane(occupantTable.getTable()), BorderLayout.CENTER);
 
         JPanel navPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
         JButton btnGoAdd = ButtonFactory.createStyledButton("+ Tambah", new Color(52, 152, 219));
         JButton btnGoEdit = ButtonFactory.createStyledButton("Menu Update", new Color(241, 196, 15));
 
-        btnGoAdd.addActionListener(e -> cardLayout.show(mainPanel, "InputPage"));
-        btnGoEdit.addActionListener(e -> cardLayout.show(mainPanel, "UpdatePage"));
+        btnGoAdd.addActionListener(e -> switchPage("InputPage"));
+        btnGoEdit.addActionListener(e -> switchPage("UpdatePage"));
 
         navPanel.add(btnGoAdd);
         navPanel.add(btnGoEdit);
@@ -137,7 +168,7 @@ public class ManajemenKosApp extends JFrame {
         JButton btnDelete = ButtonFactory.createStyledButton("HAPUS PENGHUNI", new Color(192, 57, 43));
         btnDelete.addActionListener(e -> deleteProcess());
         JButton btnBack = ButtonFactory.createStyledButton("KEMBALI", Color.DARK_GRAY);
-        btnBack.addActionListener(e -> cardLayout.show(mainPanel, "DashboardPage"));
+        btnBack.addActionListener(e -> switchPage("DashboardPage"));
 
         gbc.gridy = 1; page.add(btnUpdate, gbc);
         gbc.gridy = 2; page.add(btnDelete, gbc);
@@ -145,37 +176,92 @@ public class ManajemenKosApp extends JFrame {
         return page;
     }
 
-    // --- CRUD LOGIC ---
+    // Menangani penambahan data dengan API LocalDate
     private void addOccupantData() {
-        if (nameField.getText().isEmpty() || roomField.getText().isEmpty()) {
-            JOptionPane.showMessageDialog(this, "Data tidak lengkap!");
+        String nama = nameField.getText().trim();
+        String kamar = roomField.getText().trim();
+        String telepon = phoneField.getText().trim();
+
+        // 1. Validasi Input Kosong
+        if (nama.isEmpty() || kamar.isEmpty() || telepon.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "Semua data harus diisi!", "Peringatan", JOptionPane.WARNING_MESSAGE);
             return;
         }
+
+        // 2. Validasi Nama: Tidak boleh mengandung angka
+        // Menggunakan regex: jika mengandung digit (\\d), maka error
+        if (nama.matches(".*\\d.*")) {
+            JOptionPane.showMessageDialog(this, "Nama Penghuni tidak boleh mengandung ANGKA!", "Format Salah", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+
+        // 3. Validasi Angka menggunakan Exception Handling (try-catch)
+        try {
+            Integer.parseInt(kamar); // Validasi nomor kamar
+            Long.parseLong(telepon);  // Validasi nomor telepon
+        } catch (NumberFormatException e) {
+            JOptionPane.showMessageDialog(this, "Nomor Kamar dan No. Telepon harus berupa ANGKA!", "Format Salah", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+
+        // 4. Jika semua validasi lolos, simpan data
+        String currentTgl = LocalDate.now().format(DateTimeFormatter.ofPattern("dd-MM-yyyy")); //
+
         Object[] row = {
                 occupantTable.getModel().getRowCount() + 1,
-                nameField.getText(), roomField.getText(),
-                typeCombo.getSelectedItem(), phoneField.getText()
+                nama,
+                kamar,
+                typeCombo.getSelectedItem(),
+                telepon,
+                currentTgl
         };
-        occupantTable.getModel().addRow(row);
-        cardLayout.show(mainPanel, "DashboardPage");
+
+        try {
+            occupantTable.getModel().addRow(row);
+            occupantTable.saveToFile(); // Persistensi ke file .txt
+
+            // Reset fields
+            nameField.setText("");
+            roomField.setText("");
+            phoneField.setText("");
+
+            switchPage("DashboardPage");
+        } catch (Exception ex) {
+            JOptionPane.showMessageDialog(this, "Error: " + ex.getMessage());
+        }
     }
 
     private void updateProcess() {
         int row = occupantTable.getTable().getSelectedRow();
         if (row != -1) {
-            String name = JOptionPane.showInputDialog(this, "Nama Baru:");
-            if (name != null) occupantTable.getModel().setValueAt(name, row, 1);
+            String name = JOptionPane.showInputDialog(this, "Masukkan Nama Baru:");
+            if (name != null && !name.trim().isEmpty()) {
+                occupantTable.getModel().setValueAt(name, row, 1);
+                occupantTable.saveToFile(); //
+            }
         } else {
-            JOptionPane.showMessageDialog(this, "Pilih baris di Dashboard!");
+            JOptionPane.showMessageDialog(this, "Pilih baris di Dashboard terlebih dahulu!");
         }
     }
 
     private void deleteProcess() {
         int row = occupantTable.getTable().getSelectedRow();
         if (row != -1) {
-            occupantTable.getModel().removeRow(row);
+            int confirm = JOptionPane.showConfirmDialog(this, "Hapus data ini?");
+            if (confirm == JOptionPane.YES_OPTION) {
+                occupantTable.getModel().removeRow(row);
+                occupantTable.saveToFile(); //
+                updateCounter();
+            }
         } else {
-            JOptionPane.showMessageDialog(this, "Pilih baris di Dashboard!");
+            JOptionPane.showMessageDialog(this, "Pilih baris di Dashboard terlebih dahulu!");
+        }
+    }
+
+    public void updateCounter() {
+        if (occupantTable != null && lblTotal != null) {
+            int count = occupantTable.getModel().getRowCount();
+            lblTotal.setText("Total Penghuni: " + count);
         }
     }
 }
